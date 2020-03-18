@@ -49,7 +49,7 @@ static constexpr uint32_t OSD_UPDATE_RATE{500_ms};	// 2 Hz
 OSDatxxxx::OSDatxxxx(int bus) :
 	SPI("OSD", nullptr, bus, PX4_MK_SPI_SEL(bus, OSD_SPIDEV), SPIDEV_MODE0, OSD_SPI_BUS_SPEED),
 	ModuleParams(nullptr),
-	ScheduledWorkItem(px4::device_bus_to_wq(get_device_id()))
+	ScheduledWorkItem(MODULE_NAME, px4::device_bus_to_wq(get_device_id()))
 {
 }
 
@@ -437,8 +437,6 @@ OSDatxxxx::get_flight_mode(uint8_t nav_state)
 		break;
 
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER:
-	case vehicle_status_s::NAVIGATION_STATE_AUTO_RCRECOVER:
-	case vehicle_status_s::NAVIGATION_STATE_AUTO_RTGS:
 	case vehicle_status_s::NAVIGATION_STATE_DESCEND:
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_TAKEOFF:
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_LAND:

@@ -38,7 +38,7 @@
 
 #pragma once
 
-#include <px4_defines.h>
+#include <px4_platform_common/defines.h>
 #include <systemlib/err.h>
 #include <uORB/uORB.h>
 
@@ -59,7 +59,10 @@ public:
 	 * @param meta The uORB metadata (usually from the ORB_ID() macro) for the topic.
 	 */
 	PublicationQueued(const orb_metadata *meta) : _meta(meta) {}
-	~PublicationQueued() { orb_unadvertise(_handle); }
+	~PublicationQueued()
+	{
+		//orb_unadvertise(_handle);
+	}
 
 	/**
 	 * Publish the struct

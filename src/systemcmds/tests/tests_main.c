@@ -40,15 +40,12 @@
 
 #include "tests_main.h"
 
-#include <px4_config.h>
+#include <px4_platform_common/px4_config.h>
 
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
-
-// Not using Eigen at the moment
-#define TESTS_EIGEN_DISABLE
 
 
 static int test_help(int argc, char *argv[]);
@@ -73,7 +70,6 @@ const struct {
 	{"adc",			test_adc,		OPT_NOJIGTEST},
 	{"file",		test_file,		OPT_NOJIGTEST | OPT_NOALLTEST},
 	{"led",			test_led,		0},
-	{"sensors",		test_sensors,		0},
 	{"time",		test_time,		OPT_NOJIGTEST},
 	{"uart_baudchange",	test_uart_baudchange,	OPT_NOJIGTEST},
 	{"uart_break",		test_uart_break,	OPT_NOJIGTEST | OPT_NOALLTEST},
@@ -82,12 +78,12 @@ const struct {
 	{"rc",			rc_tests_main,		0},
 #endif /* __PX4_NUTTX */
 
-
+	{"atomic_bitset",	test_atomic_bitset,	0},
 	{"autodeclination",	test_autodeclination,	0},
 	{"bezier",		test_bezierQuad,	0},
+	{"bitset",		test_bitset,		0},
 	{"bson",		test_bson,		0},
 	{"conv",		test_conv,		0},
-	{"ctlmath",		test_controlmath,	0},
 	{"dataman",		test_dataman,		OPT_NOJIGTEST | OPT_NOALLTEST},
 	{"file2",		test_file2,		OPT_NOJIGTEST},
 	{"float",		test_float,		0},
@@ -125,9 +121,8 @@ const struct {
 	/* external tests */
 	{"commander",		commander_tests_main,	0},
 	{"controllib",		controllib_test_main,	0},
-#ifndef __PX4_NUTTX
 	{"mavlink",		mavlink_tests_main,	0},
-#else
+#ifdef __PX4_NUTTX
 	{"sf0x",		sf0x_tests_main,	0},
 #endif
 	{"uorb",		uorb_tests_main,	0},

@@ -33,10 +33,11 @@
 
 set(srcs
 	test_adc.c
+	test_atomic_bitset.cpp
 	test_autodeclination.cpp
 	test_bezierQuad.cpp
+	test_bitset.cpp
 	test_bson.cpp
-	test_controlmath.cpp
 	test_conv.cpp
 	test_dataman.c
 	test_file.c
@@ -64,7 +65,6 @@ set(srcs
 	test_ppm_loopback.c
 	test_rc.c
 	test_search_min.cpp
-	test_sensors.c
 	test_servo.c
 	test_sleep.c
 	test_smooth_z.cpp
@@ -102,7 +102,7 @@ px4_add_module(
 	DEPENDS
 		git_ecl
 		ecl_geo_lookup # TODO: move this
-		pwm_limit
+		output_limit
 		version
 	)
 

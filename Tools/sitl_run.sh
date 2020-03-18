@@ -50,8 +50,12 @@ fi
 # kill process names that might stil
 # be running from last time
 pkill -x gazebo || true
-pkill -x px4 || true
-pkill -x px4_$model || true
+
+# Do NOT kill PX4 if debug in ide
+if [ "$debugger" != "ide" ]; then
+	pkill -x px4 || true
+	pkill -x px4_$model || true
+fi
 
 cp "$src_path/Tools/posix_lldbinit" "$rootfs/.lldbinit"
 cp "$src_path/Tools/posix.gdbinit" "$rootfs/.gdbinit"
@@ -73,7 +77,7 @@ elif [ "$program" == "gazebo" ] && [ ! -n "$no_sim" ]; then
 			# Set the plugin path so Gazebo finds our model and sim
 			source "$src_path/Tools/setup_gazebo.bash" "${src_path}" "${build_path}"
 
-			gzserver --verbose "${src_path}/Tools/sitl_gazebo/worlds/${model}.world" &
+			gzserver "${src_path}/Tools/sitl_gazebo/worlds/${model}.world" &
 			SIM_PID=`echo $!`
 
 			if [[ -n "$HEADLESS" ]]; then
