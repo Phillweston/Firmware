@@ -63,7 +63,7 @@
 #include <chip.h>
 #include <stm32_uart.h>
 #include <arch/board/board.h>
-#include "up_internal.h"
+#include "arm_internal.h"
 
 #include <px4_arch/io_timer.h>
 #include <drivers/drv_hrt.h>
@@ -80,7 +80,7 @@
 /* Configuration ************************************************************/
 
 /*
- * Ideally we'd be able to get these from up_internal.h,
+ * Ideally we'd be able to get these from arm_internal.h,
  * but since we want to be able to disable the NuttX use
  * of leds for system indication at will and there is no
  * separate switch, we need to build independent of the
@@ -163,7 +163,7 @@ stm32_boardinitialize(void)
 	px4_gpio_init(gpio, arraySize(gpio));
 
 	/* configure SPI interfaces */
-	stm32_spiinitialize();
+	px4_arch_gpiowrite(GPIO_VDD_3V3_SENSORS_EN, 0);
 
 	/* configure USB interfaces */
 	stm32_usbinitialize();
@@ -198,10 +198,13 @@ stm32_boardinitialize(void)
 __EXPORT int board_app_initialize(uintptr_t arg)
 {
 	/* Power on Interfaces */
+	px4_arch_gpiowrite(GPIO_VDD_3V3_SENSORS_EN, 1);
 	board_control_spi_sensors_power(true, 0xffff);
 	VDD_3V3_SPEKTRUM_POWER_EN(true);
 
 	px4_platform_init();
+
+	stm32_spiinitialize();
 
 	/* configure the DMA allocator */
 	if (board_dma_alloc_init() < 0) {

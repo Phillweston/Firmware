@@ -83,6 +83,7 @@ SECTIONS
     *(.gcc_except_table)
     *(.gnu.linkonce.r.*)
     _etext = ABSOLUTE(.);
+
   } > dflash
 
   .init_section :
@@ -90,6 +91,15 @@ SECTIONS
     _sinit = ABSOLUTE(.);
     *(.init_array .init_array.*)
     _einit = ABSOLUTE(.);
+  } > dflash
+
+  /*
+   * Construction data for parameters.
+   */
+  __param ALIGN(4): {
+    __param_start = ABSOLUTE(.);
+    KEEP(*(__param*))
+    __param_end = ABSOLUTE(.);
   } > dflash
 
   .ARM.extab :

@@ -64,9 +64,10 @@
 #include <kinetis.h>
 #include <kinetis_uart.h>
 #include <hardware/kinetis_uart.h>
+#include <hardware/kinetis_sim.h>
 #include "board_config.h"
 
-#include "up_arch.h"
+#include "arm_arch.h"
 #include <arch/board/board.h>
 
 #include <drivers/drv_hrt.h>
@@ -83,7 +84,7 @@
  ****************************************************************************/
 
 /*
- * Ideally we'd be able to get these from up_internal.h,
+ * Ideally we'd be able to get these from arm_internal.h,
  * but since we want to be able to disable the NuttX use
  * of leds for system indication at will and there is no
  * separate switch, we need to build independent of the
@@ -164,7 +165,7 @@ __EXPORT void board_peripheral_reset(int ms)
 }
 
 /************************************************************************************
- * Name: stm32_boardinitialize
+ * Name: kinetis_boardinitialize
  *
  * Description:
  *   All Kinetis architectures must provide the following entry point.  This entry point
@@ -283,6 +284,14 @@ __EXPORT int board_app_initialize(uintptr_t arg)
 		board_autoled_on(LED_RED);
 		return ret;
 	}
+
+#endif
+
+#ifdef CONFIG_NETDEV_LATEINIT
+
+# ifdef CONFIG_KINETIS_ENET
+	kinetis_netinitialize(0);
+# endif
 
 #endif
 

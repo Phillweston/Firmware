@@ -44,6 +44,7 @@
 #include <systemlib/mavlink_log.h>
 
 #include <uORB/Subscription.hpp>
+#include <uORB/SubscriptionMultiArray.hpp>
 #include <uORB/topics/airspeed.h>
 #include <uORB/topics/airspeed_validated.h>
 #include <uORB/topics/estimator_status.h>
@@ -113,7 +114,7 @@ private:
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position)};
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _vtol_vehicle_status_sub{ORB_ID(vtol_vehicle_status)};
-	uORB::Subscription _airspeed_sub[MAX_NUM_AIRSPEED_SENSORS] {{ORB_ID(airspeed), 0}, {ORB_ID(airspeed), 1}, {ORB_ID(airspeed), 2}}; /**< raw airspeed topics subscriptions. */
+	uORB::SubscriptionMultiArray<airspeed_s, MAX_NUM_AIRSPEED_SENSORS> _airspeed_subs{ORB_ID::airspeed};
 
 	estimator_status_s _estimator_status {};
 	vehicle_acceleration_s _accel {};
@@ -176,7 +177,7 @@ private:
 
 AirspeedModule::AirspeedModule():
 	ModuleParams(nullptr),
-	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::att_pos_ctrl)
+	ScheduledWorkItem(MODULE_NAME, px4::wq_configurations::nav_and_controllers)
 {
 	// initialise parameters
 	update_params();
@@ -220,12 +221,12 @@ AirspeedModule::init()
 		_valid_airspeed_index = math::min(_param_airspeed_primary_index.get(), _number_of_airspeed_sensors);
 
 		if (_number_of_airspeed_sensors == 0) {
-			mavlink_and_console_log_info(&_mavlink_log_pub,
-						     "No airspeed sensor detected. Switch to non-airspeed mode.");
+			mavlink_log_info(&_mavlink_log_pub,
+					 "No airspeed sensor detected. Switch to non-airspeed mode.");
 
 		} else {
-			mavlink_and_console_log_info(&_mavlink_log_pub,
-						     "Primary airspeed index bigger than number connected sensors. Take last sensor.");
+			mavlink_log_info(&_mavlink_log_pub,
+					 "Primary airspeed index bigger than number connected sensors. Take last sensor.");
 		}
 
 	} else {
@@ -244,8 +245,8 @@ AirspeedModule::check_for_connected_airspeed_sensors()
 
 	if (_param_airspeed_primary_index.get() > 0) {
 
-		for (int i = 0; i < MAX_NUM_AIRSPEED_SENSORS; i++) {
-			if (!_airspeed_sub[i].advertised()) {
+		for (int i = 0; i < _airspeed_subs.size(); i++) {
+			if (!_airspeed_subs[i].advertised()) {
 				break;
 			}
 
@@ -263,6 +264,14 @@ AirspeedModule::check_for_connected_airspeed_sensors()
 void
 AirspeedModule::Run()
 {
+	_time_now_usec = hrt_absolute_time(); //hrt time of the current cycle
+
+	/* do not run the airspeed selector until 2s after system boot, as data from airspeed sensor
+	and estimator may not be valid yet*/
+	if (_time_now_usec < 2_s) {
+		return;
+	}
+
 	perf_begin(_perf_elapsed);
 
 	if (!_initialized) {
@@ -276,7 +285,7 @@ AirspeedModule::Run()
 		update_params();
 	}
 
-	_time_now_usec = hrt_absolute_time(); //hrt time of the current cycle
+
 
 	bool armed = (_vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED);
 
@@ -315,30 +324,32 @@ AirspeedModule::Run()
 		/* iterate through all airspeed sensors, poll new data from them and update their validators */
 		for (int i = 0; i < _number_of_airspeed_sensors; i++) {
 
-			/* poll airspeed data */
-			airspeed_s airspeed_raw = {};
-			_airspeed_sub[i].copy(&airspeed_raw); // poll raw airspeed topic of the i-th sensor
-			input_data.airspeed_indicated_raw = airspeed_raw.indicated_airspeed_m_s;
-			input_data.airspeed_true_raw = airspeed_raw.true_airspeed_m_s;
-			input_data.airspeed_timestamp = airspeed_raw.timestamp;
-			input_data.air_temperature_celsius = airspeed_raw.air_temperature_celsius;
+			// poll raw airspeed topic of the i-th sensor
+			airspeed_s airspeed_raw;
 
-			/* update in_fixed_wing_flight for the current airspeed sensor validator */
-			/* takeoff situation is active from start till one of the sensors' IAS or groundspeed_EAS is above stall speed */
-			if (airspeed_raw.indicated_airspeed_m_s > _airspeed_stall.get() || _ground_minus_wind_EAS > _airspeed_stall.get()) {
-				_in_takeoff_situation = false;
+			if (_airspeed_subs[i].update(&airspeed_raw)) {
+
+				input_data.airspeed_indicated_raw = airspeed_raw.indicated_airspeed_m_s;
+				input_data.airspeed_true_raw = airspeed_raw.true_airspeed_m_s;
+				input_data.airspeed_timestamp = airspeed_raw.timestamp;
+				input_data.air_temperature_celsius = airspeed_raw.air_temperature_celsius;
+
+				/* update in_fixed_wing_flight for the current airspeed sensor validator */
+				/* takeoff situation is active from start till one of the sensors' IAS or groundspeed_EAS is above stall speed */
+				if (airspeed_raw.indicated_airspeed_m_s > _airspeed_stall.get() || _ground_minus_wind_EAS > _airspeed_stall.get()) {
+					_in_takeoff_situation = false;
+				}
+
+				/* reset takeoff_situation to true when not in air or not in fixed-wing mode */
+				if (!in_air || !fixed_wing) {
+					_in_takeoff_situation = true;
+				}
+
+				input_data.in_fixed_wing_flight = (armed && fixed_wing && in_air && !_in_takeoff_situation);
+
+				/* push input data into airspeed validator */
+				_airspeed_validator[i].update_airspeed_validator(input_data);
 			}
-
-			/* reset takeoff_situation to true when not in air or not in fixed-wing mode */
-			if (!in_air || !fixed_wing) {
-				_in_takeoff_situation = true;
-			}
-
-			input_data.in_fixed_wing_flight = (armed && fixed_wing && in_air && !_in_takeoff_situation);
-
-			/* push input data into airspeed validator */
-			_airspeed_validator[i].update_airspeed_validator(input_data);
-
 		}
 	}
 
@@ -391,7 +402,7 @@ void AirspeedModule::update_params()
 				-1.0f);  // set it to a negative value to start estimation inside wind estimator
 
 		} else {
-			mavlink_and_console_log_info(&_mavlink_log_pub, "Airspeed: can't estimate scale as no valid sensor.");
+			mavlink_log_info(&_mavlink_log_pub, "Airspeed: can't estimate scale as no valid sensor.");
 			_param_west_scale_estimation_on.set(0); // reset this param to 0 as estimation was not turned on
 			_param_west_scale_estimation_on.commit_no_notification();
 		}
@@ -405,11 +416,11 @@ void AirspeedModule::update_params()
 			_param_west_airspeed_scale.commit_no_notification();
 			_airspeed_validator[_valid_airspeed_index - 1].set_airspeed_scale_manual(_param_west_airspeed_scale.get());
 
-			mavlink_and_console_log_info(&_mavlink_log_pub, "Airspeed: estimated scale (ASPD_ASPD_SCALE): %0.2f",
-						     (double)_airspeed_validator[_valid_airspeed_index - 1].get_EAS_scale());
+			mavlink_log_info(&_mavlink_log_pub, "Airspeed: estimated scale (ASPD_ASPD_SCALE): %0.2f",
+					 (double)_airspeed_validator[_valid_airspeed_index - 1].get_EAS_scale());
 
 		} else {
-			mavlink_and_console_log_info(&_mavlink_log_pub, "Airspeed: can't estimate scale as no valid sensor.");
+			mavlink_log_info(&_mavlink_log_pub, "Airspeed: can't estimate scale as no valid sensor.");
 		}
 	}
 

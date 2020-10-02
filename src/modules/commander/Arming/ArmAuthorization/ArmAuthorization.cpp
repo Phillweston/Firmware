@@ -39,7 +39,7 @@
 #include <px4_platform_common/px4_config.h>
 #include <lib/parameters/param.h>
 #include <systemlib/mavlink_log.h>
-#include <uORB/PublicationQueued.hpp>
+#include <uORB/Publication.hpp>
 #include <uORB/topics/vehicle_command.h>
 #include <uORB/topics/vehicle_command_ack.h>
 
@@ -163,7 +163,7 @@ static uint8_t _auth_method_two_arm_check()
 	auth_timeout = now + (arm_parameters.struct_value.auth_method_param.auth_method_arm_timeout_msec * 1000);
 	state = ARM_AUTH_WAITING_AUTH;
 
-	mavlink_log_critical(mavlink_log_pub, "Arm auth: Requesting authorization...");
+	mavlink_log_info(mavlink_log_pub, "Arm auth: Requesting authorization...");
 
 	return vehicle_command_ack_s::VEHICLE_RESULT_TEMPORARILY_REJECTED;
 }
@@ -222,9 +222,9 @@ void arm_auth_update(hrt_abstime now, bool param_update)
 			break;
 
 		case vehicle_command_ack_s::VEHICLE_RESULT_ACCEPTED:
-			mavlink_log_critical(mavlink_log_pub,
-					     "Arm auth: Authorized for the next %u seconds",
-					     command_ack.result_param2);
+			mavlink_log_info(mavlink_log_pub,
+					 "Arm auth: Authorized for the next %u seconds",
+					 command_ack.result_param2);
 			state = ARM_AUTH_MISSION_APPROVED;
 			auth_timeout = now + (command_ack.result_param2 * 1000000);
 			return;

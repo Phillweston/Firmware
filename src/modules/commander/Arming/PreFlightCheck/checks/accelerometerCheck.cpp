@@ -37,7 +37,8 @@
 #include <HealthFlags.h>
 #include <math.h>
 #include <px4_defines.h>
-#include <systemlib/mavlink_log.h>
+#include <lib/sensor_calibration/Utilities.hpp>
+#include <lib/systemlib/mavlink_log.h>
 #include <uORB/Subscription.hpp>
 #include <uORB/topics/sensor_accel.h>
 #include <uORB/topics/subsystem_info.h>
@@ -49,15 +50,15 @@ bool PreFlightCheck::accelerometerCheck(orb_advert_t *mavlink_log_pub, vehicle_s
 {
 	const bool exists = (orb_exists(ORB_ID(sensor_accel), instance) == PX4_OK);
 	bool calibration_valid = false;
-	bool accel_valid = true;
+	bool valid = true;
 
 	if (exists) {
 
 		uORB::SubscriptionData<sensor_accel_s> accel{ORB_ID(sensor_accel), instance};
 
-		accel_valid = (hrt_elapsed_time(&accel.get().timestamp) < 1_s);
+		valid = (accel.get().device_id != 0) && (accel.get().timestamp != 0);
 
-		if (!accel_valid) {
+		if (!valid) {
 			if (report_fail) {
 				mavlink_log_critical(mavlink_log_pub, "Preflight Fail: no valid data from Accel #%u", instance);
 			}
@@ -65,7 +66,7 @@ bool PreFlightCheck::accelerometerCheck(orb_advert_t *mavlink_log_pub, vehicle_s
 
 		device_id = accel.get().device_id;
 
-		calibration_valid = check_calibration("CAL_ACC%u_ID", device_id);
+		calibration_valid = (calibration::FindCalibrationIndex("ACC", device_id) >= 0);
 
 		if (!calibration_valid) {
 			if (report_fail) {
@@ -85,7 +86,7 @@ bool PreFlightCheck::accelerometerCheck(orb_advert_t *mavlink_log_pub, vehicle_s
 					}
 
 					/* this is frickin' fatal */
-					accel_valid = false;
+					valid = false;
 				}
 			}
 		}
@@ -96,14 +97,7 @@ bool PreFlightCheck::accelerometerCheck(orb_advert_t *mavlink_log_pub, vehicle_s
 		}
 	}
 
-	const bool success = calibration_valid && accel_valid;
-
-	if (instance == 0) {
-		set_health_flags(subsystem_info_s::SUBSYSTEM_TYPE_ACC, exists, !optional, success, status);
-
-	} else if (instance == 1) {
-		set_health_flags(subsystem_info_s::SUBSYSTEM_TYPE_ACC2, exists, !optional, success, status);
-	}
+	const bool success = calibration_valid && valid;
 
 	return success;
 }
